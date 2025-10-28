@@ -1,6 +1,6 @@
 import os
 import streamlit as st
-from bokeh.models.widgets import Button
+from bokeh.models import Button  # ✅ Corrección aquí
 from bokeh.models import CustomJS
 from streamlit_bokeh_events import streamlit_bokeh_events
 from PIL import Image
@@ -9,35 +9,33 @@ import glob
 import paho.mqtt.client as paho
 import json
 from gtts import gTTS
+import base64
 from googletrans import Translator
 
 # ---- MQTT Setup ----
 def on_publish(client, userdata, result):
-    print("El dato ha sido publicado.\n")
+    print("✅ Dato publicado en el broker MQTT.")
     pass
 
 def on_message(client, userdata, message):
     global message_received
     time.sleep(2)
     message_received = str(message.payload.decode("utf-8"))
-    st.write(message_received)
+    st.write(f"📡 Mensaje recibido: {message_received}")
 
 broker = "broker.mqttdashboard.com"
 port = 1883
-client1 = paho.Client("GIT-HUBC")
+client1 = paho.Client("ANUEL-VOICE-CONTROL")
 client1.on_message = on_message
 
 # ---- Estilo CSS inspirado en Anuel ----
 st.markdown("""
     <style>
-        /* Fondo degradado tipo Anuel (negro-rojo) */
         .stApp {
             background: linear-gradient(135deg, #000000, #4b0000, #ff0000);
             color: white;
             font-family: 'Poppins', sans-serif;
         }
-
-        /* Título principal */
         h1 {
             text-align: center;
             color: #ff3b3b;
@@ -45,22 +43,16 @@ st.markdown("""
             font-weight: 800;
             text-shadow: 0px 0px 15px #ff0000;
         }
-
-        /* Subtítulo */
         h2, h3 {
             text-align: center;
             color: #f7dada;
             font-weight: 600;
             text-shadow: 0px 0px 8px #a00000;
         }
-
-        /* Texto general */
         p, div, span {
             color: #f5f5f5 !important;
             font-size: 1.1em;
         }
-
-        /* Imagen centrada */
         img {
             display: block;
             margin-left: auto;
@@ -69,8 +61,6 @@ st.markdown("""
             border: 3px solid #ff0000;
             box-shadow: 0px 0px 25px rgba(255, 0, 0, 0.6);
         }
-
-        /* Botón principal */
         div[data-testid="stButton"] > button {
             background: linear-gradient(90deg, #ff0000, #660000);
             color: white;
@@ -82,13 +72,10 @@ st.markdown("""
             box-shadow: 0px 0px 15px #ff1a1a;
             transition: all 0.3s ease;
         }
-
         div[data-testid="stButton"] > button:hover {
             transform: scale(1.08);
             box-shadow: 0px 0px 25px #ff3333;
         }
-
-        /* Sección inferior */
         .footer {
             text-align: center;
             margin-top: 25px;
@@ -101,10 +88,14 @@ st.markdown("""
 # ---- Interfaz Principal ----
 st.title("🎤 INTERFACES MULTIMODALES")
 st.subheader("🔥 CONTROL POR VOZ - ESTILO ANUEL 🔥")
+st.markdown("💬 *“Yo soy leyenda, no por fama… por respeto.”* — Anuel AA")
 
-# Imagen
-image = Image.open('voice_ctrl.jpg')
-st.image(image, width=250)
+# Imagen de portada
+try:
+    image = Image.open('voice_ctrl.jpg')
+    st.image(image, width=250)
+except:
+    st.warning("⚠️ No se encontró la imagen 'voice_ctrl.jpg'. Puedes agregarla para más flow.")
 
 # Indicaciones
 st.write("Toca el botón y **habla con poder** — deja que la voz controle la acción 💯")
@@ -142,17 +133,26 @@ result = streamlit_bokeh_events(
 
 # Procesamiento de voz
 if result and "GET_TEXT" in result:
-    st.success(f"🎧 Comando detectado: {result.get('GET_TEXT')}")
+    comando = result.get("GET_TEXT").strip()
+    st.success(f"🎧 Comando detectado: {comando}")
+
+    # Publicar en MQTT
     client1.on_publish = on_publish
     client1.connect(broker, port)
-    message = json.dumps({"Act1": result.get("GET_TEXT").strip()})
-    ret = client1.publish("voice_ctrl", message)
+    mensaje = json.dumps({"Act1": comando})
+    client1.publish("voice_ctrl", mensaje)
 
-    # Crear carpeta temporal (si no existe)
-    try:
-        os.mkdir("temp")
-    except:
-        pass
+    # Crear carpeta temporal
+    os.makedirs("temp", exist_ok=True)
+
+    # Convertir a audio con gTTS
+    tts = gTTS(comando, lang='es')
+    audio_path = f"temp/{comando[:15].replace(' ', '_')}.mp3"
+    tts.save(audio_path)
+
+    with open(audio_path, "rb") as f:
+        audio_bytes = f.read()
+    st.audio(audio_bytes, format="audio/mp3")
 
 # Footer
 st.markdown("""
