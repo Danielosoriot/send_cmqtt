@@ -1,136 +1,163 @@
-import paho.mqtt.client as paho
-import time
+import os
 import streamlit as st
+from bokeh.models.widgets import Button
+from bokeh.models import CustomJS
+from streamlit_bokeh_events import streamlit_bokeh_events
+from PIL import Image
+import time
+import glob
+import paho.mqtt.client as paho
 import json
-import platform
+from gtts import gTTS
+from googletrans import Translator
 
-# --- 🎨 Estilo visual ANUEL: fondo negro con degradado rojo ---
+# ---- MQTT Setup ----
+def on_publish(client, userdata, result):
+    print("El dato ha sido publicado.\n")
+    pass
+
+def on_message(client, userdata, message):
+    global message_received
+    time.sleep(2)
+    message_received = str(message.payload.decode("utf-8"))
+    st.write(message_received)
+
+broker = "broker.mqttdashboard.com"
+port = 1883
+client1 = paho.Client("GIT-HUBC")
+client1.on_message = on_message
+
+# ---- Estilo CSS inspirado en Anuel ----
 st.markdown("""
     <style>
-        /* Fondo degradado negro y rojo */
+        /* Fondo degradado tipo Anuel (negro-rojo) */
         .stApp {
-            background: linear-gradient(to bottom right, #000000, #8B0000);
+            background: linear-gradient(135deg, #000000, #4b0000, #ff0000);
+            color: white;
             font-family: 'Poppins', sans-serif;
         }
 
-        /* Título con estilo fuerte y brillante */
+        /* Título principal */
         h1 {
-            color: #ff0000;
             text-align: center;
-            font-weight: 900;
-            text-shadow: 2px 2px 10px #000000;
-            letter-spacing: 2px;
-            margin-bottom: 0.8em;
+            color: #ff3b3b;
+            font-size: 2.5em;
+            font-weight: 800;
+            text-shadow: 0px 0px 15px #ff0000;
         }
 
-        /* Texto blanco con toques rojos */
-        p, label {
-            color: #ffffff !important;
-            font-weight: 500;
+        /* Subtítulo */
+        h2, h3 {
+            text-align: center;
+            color: #f7dada;
+            font-weight: 600;
+            text-shadow: 0px 0px 8px #a00000;
         }
 
-        /* Estilo de botones (modo trap) */
-        .stButton>button {
-            background-color: #ff0000 !important;
-            color: white !important;
-            border-radius: 10px;
-            border: 2px solid #fff;
-            font-weight: bold;
-            letter-spacing: 1px;
+        /* Texto general */
+        p, div, span {
+            color: #f5f5f5 !important;
+            font-size: 1.1em;
+        }
+
+        /* Imagen centrada */
+        img {
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+            border-radius: 20px;
+            border: 3px solid #ff0000;
+            box-shadow: 0px 0px 25px rgba(255, 0, 0, 0.6);
+        }
+
+        /* Botón principal */
+        div[data-testid="stButton"] > button {
+            background: linear-gradient(90deg, #ff0000, #660000);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 0.6em 2em;
+            font-size: 1.1em;
+            font-weight: 600;
+            box-shadow: 0px 0px 15px #ff1a1a;
             transition: all 0.3s ease;
         }
 
-        .stButton>button:hover {
-            background-color: #000000 !important;
-            color: #ff0000 !important;
-            box-shadow: 0px 0px 20px #ff0000;
-            transform: scale(1.1);
+        div[data-testid="stButton"] > button:hover {
+            transform: scale(1.08);
+            box-shadow: 0px 0px 25px #ff3333;
         }
 
-        /* Slider estilo rojo */
-        [data-testid="stSlider"] .st-ax {
-            background-color: #ff0000 !important;
-        }
-
-        /* Mensaje de salida */
-        .mqtt-output {
-            background-color: rgba(255, 0, 0, 0.15);
-            padding: 10px;
-            border-radius: 10px;
-            color: white;
-            font-weight: bold;
-            border: 1px solid #ff0000;
+        /* Sección inferior */
+        .footer {
+            text-align: center;
+            margin-top: 25px;
+            font-size: 1.1em;
+            color: #ff4d4d;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# --- Encabezado principal ---
-st.title("🎛️ CONTROL MQTT - MODO ANUEL 🔥")
+# ---- Interfaz Principal ----
+st.title("🎤 INTERFACES MULTIMODALES")
+st.subheader("🔥 CONTROL POR VOZ - ESTILO ANUEL 🔥")
 
-# --- Versión de Python ---
-st.write("💻 Versión de Python:", platform.python_version())
+# Imagen
+image = Image.open('voice_ctrl.jpg')
+st.image(image, width=250)
 
-# --- Variables iniciales ---
-values = 0.0
-act1 = "OFF"
-message_received = ""
+# Indicaciones
+st.write("Toca el botón y **habla con poder** — deja que la voz controle la acción 💯")
 
-# --- Funciones MQTT ---
-def on_publish(client, userdata, result):
-    print("✅ El dato ha sido publicado con éxito\n")
+# Botón de reconocimiento de voz
+stt_button = Button(label="🎙️ INICIAR VOZ", width=200)
+stt_button.js_on_event("button_click", CustomJS(code="""
+    var recognition = new webkitSpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
 
-def on_message(client, userdata, message):
-    global message_received
-    time.sleep(1)
-    message_received = str(message.payload.decode("utf-8"))
-    st.markdown(f"<div class='mqtt-output'>📩 Mensaje recibido: {message_received}</div>", unsafe_allow_html=True)
+    recognition.onresult = function (e) {
+        var value = "";
+        for (var i = e.resultIndex; i < e.results.length; ++i) {
+            if (e.results[i].isFinal) {
+                value += e.results[i][0].transcript;
+            }
+        }
+        if (value != "") {
+            document.dispatchEvent(new CustomEvent("GET_TEXT", {detail: value}));
+        }
+    }
+    recognition.start();
+"""))
 
-# --- Configuración del broker MQTT ---
-broker = "157.230.214.127"
-port = 1883
-client1 = paho.Client("GIT-HUB")
-client1.on_message = on_message
+# Escucha del evento de voz
+result = streamlit_bokeh_events(
+    stt_button,
+    events="GET_TEXT",
+    key="listen",
+    refresh_on_update=False,
+    override_height=75,
+    debounce_time=0
+)
 
-# --- Botones de control ON/OFF ---
-col1, col2 = st.columns(2)
-
-with col1:
-    if st.button('💡 ENCENDER (ON)'):
-        act1 = "ON"
-        client1 = paho.Client("GIT-HUB")
-        client1.on_publish = on_publish
-        client1.connect(broker, port)
-        message = json.dumps({"Act1": act1})
-        ret = client1.publish("cmqtt_s", message)
-        st.success("🔥 Dispositivo encendido")
-
-with col2:
-    if st.button('💤 APAGAR (OFF)'):
-        act1 = "OFF"
-        client1 = paho.Client("GIT-HUB")
-        client1.on_publish = on_publish
-        client1.connect(broker, port)
-        message = json.dumps({"Act1": act1})
-        ret = client1.publish("cmqtt_s", message)
-        st.warning("⚡ Dispositivo apagado")
-
-# --- Slider para valor analógico ---
-st.markdown("<br>", unsafe_allow_html=True)
-values = st.slider('🎚️ Selecciona un valor analógico', 0.0, 100.0)
-st.markdown(f"<p style='color:white;'>Valor seleccionado: <b>{values}</b></p>", unsafe_allow_html=True)
-
-if st.button('📤 Enviar valor analógico'):
-    client1 = paho.Client("GIT-HUB")
+# Procesamiento de voz
+if result and "GET_TEXT" in result:
+    st.success(f"🎧 Comando detectado: {result.get('GET_TEXT')}")
     client1.on_publish = on_publish
     client1.connect(broker, port)
-    message = json.dumps({"Analog": float(values)})
-    ret = client1.publish("cmqtt_a", message)
-    st.success(f"📡 Valor {values} enviado correctamente al canal analógico")
+    message = json.dumps({"Act1": result.get("GET_TEXT").strip()})
+    ret = client1.publish("voice_ctrl", message)
 
-# --- Mensaje final ---
+    # Crear carpeta temporal (si no existe)
+    try:
+        os.mkdir("temp")
+    except:
+        pass
+
+# Footer
 st.markdown("""
-<div style='text-align:center; margin-top:30px; font-size:1.1em; color:white;'>
-🎶 Controla tu flow digital desde la consola de poder 🎶<br>
-<span style='color:#ff0000;'>💯 ANUEL AI SYSTEM 💯</span>
+<div class="footer">
+    💥 Proyecto inspirado en la energía de Anuel AA 💥<br>
+    "Real hasta la muerte 🔥"
 </div>
 """, unsafe_allow_html=True)
