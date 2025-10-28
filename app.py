@@ -1,163 +1,150 @@
-import os
-import streamlit as st
-from bokeh.models import Button  # ✅ Corrección aquí
-from bokeh.models import CustomJS
-from streamlit_bokeh_events import streamlit_bokeh_events
-from PIL import Image
-import time
-import glob
 import paho.mqtt.client as paho
+import time
+import streamlit as st
 import json
-from gtts import gTTS
-import base64
-from googletrans import Translator
 
-# ---- MQTT Setup ----
-def on_publish(client, userdata, result):
-    print("✅ Dato publicado en el broker MQTT.")
-    pass
+# 🧠 Configuración general de la página
+st.set_page_config(
+    page_title="🔥 Panel de Control MQTT - Estilo Anuel 🔥",
+    page_icon="🎤",
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
 
-def on_message(client, userdata, message):
-    global message_received
-    time.sleep(2)
-    message_received = str(message.payload.decode("utf-8"))
-    st.write(f"📡 Mensaje recibido: {message_received}")
-
-broker = "broker.mqttdashboard.com"
-port = 1883
-client1 = paho.Client("ANUEL-VOICE-CONTROL")
-client1.on_message = on_message
-
-# ---- Estilo CSS inspirado en Anuel ----
+# 🎨 Estilos personalizados: Degradado negro y rojo con efectos neón
 st.markdown("""
     <style>
-        .stApp {
-            background: linear-gradient(135deg, #000000, #4b0000, #ff0000);
-            color: white;
+        /* Fondo degradado oscuro con estilo urbano */
+        [data-testid="stAppViewContainer"] {
+            background: linear-gradient(135deg, #000000 30%, #8b0000 100%);
+            color: #f5f5f5;
             font-family: 'Poppins', sans-serif;
         }
+
+        /* Título principal */
         h1 {
+            color: #ff1e56;
+            text-shadow: 0 0 25px rgba(255, 0, 0, 0.8);
             text-align: center;
-            color: #ff3b3b;
-            font-size: 2.5em;
-            font-weight: 800;
-            text-shadow: 0px 0px 15px #ff0000;
+            font-size: 3em;
+            font-weight: 900;
+            letter-spacing: 2px;
         }
-        h2, h3 {
+
+        /* Subtítulos y textos */
+        h2, h3, label, p {
+            color: #f8d7da;
             text-align: center;
-            color: #f7dada;
-            font-weight: 600;
-            text-shadow: 0px 0px 8px #a00000;
         }
-        p, div, span {
-            color: #f5f5f5 !important;
-            font-size: 1.1em;
-        }
-        img {
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
+
+        /* Caja principal */
+        .main {
+            background-color: rgba(20, 20, 20, 0.7);
             border-radius: 20px;
-            border: 3px solid #ff0000;
-            box-shadow: 0px 0px 25px rgba(255, 0, 0, 0.6);
+            padding: 30px;
+            box-shadow: 0 0 25px rgba(255, 0, 0, 0.3);
         }
-        div[data-testid="stButton"] > button {
-            background: linear-gradient(90deg, #ff0000, #660000);
-            color: white;
+
+        /* Botones con efectos neón */
+        .stButton>button {
+            color: #fff;
             border: none;
             border-radius: 12px;
-            padding: 0.6em 2em;
-            font-size: 1.1em;
-            font-weight: 600;
-            box-shadow: 0px 0px 15px #ff1a1a;
+            height: 50px;
+            width: 100%;
+            font-size: 1.2em;
+            font-weight: bold;
+            letter-spacing: 1px;
             transition: all 0.3s ease;
+            background: linear-gradient(90deg, #ff0033, #ff1e56);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
         }
-        div[data-testid="stButton"] > button:hover {
-            transform: scale(1.08);
-            box-shadow: 0px 0px 25px #ff3333;
+
+        .stButton>button:hover {
+            background: linear-gradient(90deg, #1e90ff, #0077ff);
+            box-shadow: 0 0 25px rgba(0, 153, 255, 0.8);
+            transform: scale(1.07);
         }
-        .footer {
-            text-align: center;
-            margin-top: 25px;
-            font-size: 1.1em;
-            color: #ff4d4d;
+
+        /* Slider estilo metálico */
+        .stSlider label {
+            color: #ffcccc;
+            font-weight: bold;
+        }
+
+        .stMarkdown h3 {
+            color: #ff6666;
+        }
+
+        /* Línea separadora personalizada */
+        hr {
+            border: 1px solid #ff1e56;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.6);
         }
     </style>
 """, unsafe_allow_html=True)
 
-# ---- Interfaz Principal ----
-st.title("🎤 INTERFACES MULTIMODALES")
-st.subheader("🔥 CONTROL POR VOZ - ESTILO ANUEL 🔥")
-st.markdown("💬 *“Yo soy leyenda, no por fama… por respeto.”* — Anuel AA")
+# ⚙️ Variables globales
+values = 0.0
+act1 = "OFF"
 
-# Imagen de portada
-try:
-    image = Image.open('voice_ctrl.jpg')
-    st.image(image, width=250)
-except:
-    st.warning("⚠️ No se encontró la imagen 'voice_ctrl.jpg'. Puedes agregarla para más flow.")
+def on_publish(client, userdata, result):
+    print("✅ Dato publicado correctamente")
 
-# Indicaciones
-st.write("Toca el botón y **habla con poder** — deja que la voz controle la acción 💯")
+def on_message(client, userdata, message):
+    time.sleep(2)
+    message_received = str(message.payload.decode("utf-8"))
+    st.write(f"📩 Mensaje recibido: `{message_received}`")
 
-# Botón de reconocimiento de voz
-stt_button = Button(label="🎙️ INICIAR VOZ", width=200)
-stt_button.js_on_event("button_click", CustomJS(code="""
-    var recognition = new webkitSpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
+# 🛰️ Conexión MQTT
+broker = "157.230.214.127"
+port = 1883
+client1 = paho.Client("ANUEL-MQTT")
+client1.on_message = on_message
 
-    recognition.onresult = function (e) {
-        var value = "";
-        for (var i = e.resultIndex; i < e.results.length; ++i) {
-            if (e.results[i].isFinal) {
-                value += e.results[i][0].transcript;
-            }
-        }
-        if (value != "") {
-            document.dispatchEvent(new CustomEvent("GET_TEXT", {detail: value}));
-        }
-    }
-    recognition.start();
-"""))
+# 🎤 INTERFAZ PRINCIPAL
+st.title("🔥 PANEL DE CONTROL MQTT 🔥")
+st.markdown("### 💀 By: Flow Inteligente")
 
-# Escucha del evento de voz
-result = streamlit_bokeh_events(
-    stt_button,
-    events="GET_TEXT",
-    key="listen",
-    refresh_on_update=False,
-    override_height=75,
-    debounce_time=0
-)
+st.markdown("<hr>", unsafe_allow_html=True)
 
-# Procesamiento de voz
-if result and "GET_TEXT" in result:
-    comando = result.get("GET_TEXT").strip()
-    st.success(f"🎧 Comando detectado: {comando}")
+col1, col2 = st.columns(2)
 
-    # Publicar en MQTT
+with col1:
+    if st.button('🚨 ENCENDER DISPOSITIVO'):
+        act1 = "ON"
+        client1 = paho.Client("ANUEL-MQTT")
+        client1.on_publish = on_publish
+        client1.connect(broker, port)
+        message = json.dumps({"Act1": act1})
+        client1.publish("cmqtt_s", message)
+        st.success("💡 Dispositivo ENCENDIDO - 🔥 Real Hasta la Muerte 🔥")
+
+with col2:
+    if st.button('💤 APAGAR DISPOSITIVO'):
+        act1 = "OFF"
+        client1 = paho.Client("ANUEL-MQTT")
+        client1.on_publish = on_publish
+        client1.connect(broker, port)
+        message = json.dumps({"Act1": act1})
+        client1.publish("cmqtt_s", message)
+        st.error("💀 Dispositivo APAGADO")
+
+st.markdown("<hr>", unsafe_allow_html=True)
+
+# 🎚️ Control analógico
+st.markdown("### ⚙️ CONTROL ANALÓGICO")
+values = st.slider('Selecciona un valor para enviar', 0.0, 100.0, 50.0)
+st.write(f"🎛️ Valor seleccionado: `{values}`")
+
+if st.button('📤 ENVIAR VALOR ANALÓGICO'):
+    client1 = paho.Client("ANUEL-MQTT")
     client1.on_publish = on_publish
     client1.connect(broker, port)
-    mensaje = json.dumps({"Act1": comando})
-    client1.publish("voice_ctrl", mensaje)
+    message = json.dumps({"Analog": float(values)})
+    client1.publish("cmqtt_a", message)
+    st.success(f"🚀 Valor analógico enviado: `{values}`")
 
-    # Crear carpeta temporal
-    os.makedirs("temp", exist_ok=True)
+st.markdown("<hr>", unsafe_allow_html=True)
 
-    # Convertir a audio con gTTS
-    tts = gTTS(comando, lang='es')
-    audio_path = f"temp/{comando[:15].replace(' ', '_')}.mp3"
-    tts.save(audio_path)
-
-    with open(audio_path, "rb") as f:
-        audio_bytes = f.read()
-    st.audio(audio_bytes, format="audio/mp3")
-
-# Footer
-st.markdown("""
-<div class="footer">
-    💥 Proyecto inspirado en la energía de Anuel AA 💥<br>
-    "Real hasta la muerte 🔥"
-</div>
-""", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#ffcccc;'>🎶 “Brrr... Real Hasta la Muerte 🔥”</p>", unsafe_allow_html=True)
